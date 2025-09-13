@@ -1,4 +1,4 @@
-# Start a Modded NeoForge Minecraft Server on Raspberry Pi 5
+# Create a Modded NeoForge Minecraft Server on Raspberry Pi 5
 This document is for users who want a continuously running Minecraft server but do not want to keep their mail laptop/desktop running at all times. This will show you how to set up a raspberry pi to host your Minecraft server, and how to enable friends to connect to it remotely. 
 
 Using a 16GB Raspberry Pi 5 with a 128GB micro SD card.
