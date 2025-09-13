@@ -24,14 +24,15 @@ Within the Raspberry Pi imager, select the Raspberry Pi OS Lite (64-bit) operati
 Within the settings, choose a username, password, SSID for your wifi, and the password. Set up a hostname and Enable SSH. Remember all of these credentials as they will be used to set up the server
 
 ## 2. Raspberry Pi Setup
-a. SSH into the Pi and enable internet access to set up the server
-b. Ping the hostname using your username set in the settings from step 1: ping hostname.local
-c. Copy IP address that appears in each ping and ssh into the pi: ssh username@ip_address
-d. Run sudo raspi-config, then choose the first option to enter the wifi information
-e. sudo reboot the pi
+1. SSH into the Pi and enable internet access to set up the server
+2. Ping the hostname using your username set in the settings from step 1: ping hostname.local
+3. Copy IP address that appears in each ping and ssh into the pi: ssh username@ip_address
+4. Run sudo raspi-config, then choose the first option to enter the wifi information
+5. sudo reboot the pi
 
 ## 3. Install Java 21
 Install JDK 21 onto the Raspberry Pi to use the server now that we have internet access:
+```
 mkdir minecraft_server. Then, cd minecraft_server
 sudo apt update
 sudo apt install -y gnupg2
@@ -40,25 +41,25 @@ echo "deb http://repos.azul.com/zulu/deb stable main" | sudo tee /etc/apt/source
 sudo apt update
 sudo apt install -y zulu21-jdk-headless
 java -version
-
+```
 ## 4. Install the NeoForge Server
-Install the server onto the raspberry pi: java -jar neoforge-21.7.25-beta-installer.jar
-Run the server to generate and edit the eula.txt file: ./run.sh
-Edit the eula.txt file. Turn the eula variable from false to true, then save and exit the file
+1. Install the server onto the raspberry pi: `java -jar neoforge-21.7.25-beta-installer.jar`
+2. Run the server to generate and edit the eula.txt file: `./run.sh`
+3. Edit the `eula.txt` file. Turn the eula variable from false to true, then save and exit the file
 
 ## 5. Run the NeoForge Server
 Configure server settings and run the NeoForge Server
-Run server to generate server files: ./run.sh
-Exit the server (ctrl + c) and there will be new files. Set your whitelist and server properties here
-If a /mods folder is not present, create one. This is where you will copy/move all of your .jar mod files to. If you have a different world you want to play, copy/move the file into the /world folder
-Move the Neoforge mod files from your desktop to your raspberry pi: scp /path/to/local/file.jar pi@your_pi_ip_address:/path/to/destination/on/pi/
-Run the server again to make sure you can connect: ./run.sh
+1. Run server to generate server files: ./run.sh
+2. Exit the server (ctrl + c) and there will be new files. Set your whitelist and server properties here
+3. If a /mods folder is not present, create one. This is where you will copy/move all of your .jar mod files to. If you have a different world you want to play, copy/move the file into the /world folder
+4. Move the Neoforge mod files from your desktop to your raspberry pi: scp /path/to/local/file.jar pi@your_pi_ip_address:/path/to/destination/on/pi/
+5. Run the server again to make sure you can connect: ./run.sh
 
 ## 6. Connect to Server with Friends
-Shut down the server and install Tailscale onto the Pi: curl -fsSL https://tailscale.com/install.sh | sh
-From the Pi, start and log into Tailscale: sudo tailscale up
-In Tailscale, go to Add Device>Linux and add the Raspberry Pi as a device. Copy the IP address
-Send Tailscale requests to friends for them to join
-In Minecraft, go to Multiplayer>Add Server, then paste the IP address from step c
-Run the server one more time: ./run.sh
-You should be connected! Everyone you invited to Tailscale will be able to connect to this IP address
+1. Shut down the server and install Tailscale onto the Pi: curl -fsSL https://tailscale.com/install.sh | sh
+2. From the Pi, start and log into Tailscale: sudo tailscale up
+3. In Tailscale, go to Add Device>Linux and add the Raspberry Pi as a device. Copy the IP address
+4. Send Tailscale requests to friends for them to join
+5. In Minecraft, go to Multiplayer>Add Server, then paste the IP address from step c
+6. Run the server one more time: ./run.sh
+7. You should be connected! Everyone you invited to Tailscale will be able to connect to this IP address
