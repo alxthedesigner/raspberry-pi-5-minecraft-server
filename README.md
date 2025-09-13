@@ -5,7 +5,7 @@ Using a 16GB Raspberry Pi 5 with a 128GB micro SD card.
 Minecraft version 1.21.7.
 NeoForge version 21.7.25-beta.
 
-##Table of Contents
+## Table of Contents
 0. Prerequisites
 1. Imaging onto the SD card
 2. Raspberry Pi Setup
