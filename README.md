@@ -27,9 +27,9 @@ NeoForge version 21.7.25-beta.
 - Set up a hostname and Enable SSH. Remember all of these credentials as they will be used to set up the server
 
 ## 2. Raspberry Pi Setup
-1. SSH into the Raspberry Pi and enable internet access to set up the server
+1. `ssh` into the Raspberry Pi and enable internet access to set up the server
 2. Ping the **hostname** using the **username** set in the imager settings: `ping hostname.local`
-3. Copy IP address that appears in each ping and ssh into the Raspberry Pi: `ssh username@ip_address`
+3. Copy IP address that appears in each `ping` and `ssh` into the Raspberry Pi: `ssh username@ip_address`
 4. Run sudo `raspi-config`, then choose the first option to enter the wifi information
 5. `sudo reboot` the Raspberry Pi
 
