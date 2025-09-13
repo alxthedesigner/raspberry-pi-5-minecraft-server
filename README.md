@@ -1,10 +1,11 @@
-# raspberry-pi-5-minecraft-server
-Minecraft server running on a 16GB Raspberry Pi 5 with a 128GB micro SD card
+# Raspberry Pi 5 Modded Minecraft Server
+This document is for users who want a continuously running Minecraft server but do not want to keep their mail laptop/desktop running at all times. This will show you how to set up a raspberry pi to host your Minecraft server, and how to enable friends to connect to it remotely. 
 
-## Raspberry Pi 5 Modded Minecraft Server Setup
-Set up your raspberry pi to handle your modded world. 
-Minecraft version 1.21.7 on NeoForge version 21.7.25-beta.
+Using a 16GB Raspberry Pi 5 with a 128GB micro SD card.
+Minecraft version 1.21.7.
+NeoForge version 21.7.25-beta.
 
+##Table of Contents
 0. Prerequisites
 1. Imaging onto the SD card
 2. Raspberry Pi Setup
@@ -18,6 +19,7 @@ Minecraft version 1.21.7 on NeoForge version 21.7.25-beta.
 - 128GB A1 SD Card
 - Laptop (for imaging and connecting to the raspberry pi)
 - [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+- Tailscale account (its free!)
 
 ## 1. Imaging onto the SD card
 - Within the Raspberry Pi Imager, select the Raspberry Pi OS Lite (64-bit) operating system to put onto the SD card.
