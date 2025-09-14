@@ -1,19 +1,18 @@
 # Create a Modded NeoForge Minecraft Server on Raspberry Pi 5
-This document is for users who want a continuously running Minecraft server but do not want to keep their mail laptop/desktop running at all times. This will show you how to set up a raspberry pi to host your Minecraft server, and how to enable friends to connect to it remotely. 
+This document is for Minecraft users who want a continuously running Minecraft server but do not want to keep their main laptop/desktop running at all times. You will learn how to set up a raspberry pi, how to set up your Minecraft server with your world + mods, and how to enable friends to connect to the world remotely. 
 
-Using a 16GB Raspberry Pi 5 with a 128GB micro SD card.
-Minecraft version 1.21.7.
-NeoForge version 21.7.25-beta.
-Fall 2025
+- 16GB Raspberry Pi 5 with a 128GB micro SD card (Fall 2025)
+- Minecraft version 1.21.7
+- NeoForge version 21.7.25-beta. 
 
 ## Table of Contents
 1. Prerequisites
-2. Imaging onto the SD card
+2. Image OS onto the SD card
 3. Raspberry Pi Setup
 4. Install Java 21
 5. Install the NeoForge Server
 6. Run the NeoForge Server
-7. Connect to Serve with Friends
+7. Connect to Server with Friends
 
 ## 1. Prerequisites:
 - Raspberry Pi 5 (16GB)
@@ -22,7 +21,8 @@ Fall 2025
 - [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
 - Tailscale account (its free!)
 
-## 2. Imaging onto the SD card
+## 2. Image OS onto the SD card
+The SD card will hold the operating system (OS) and store your files. To get the OS onto the Raspberry Pi, use the Raspberry Pi Imager to put the OS image onto the SD card.
 - Within the Raspberry Pi Imager, select the Raspberry Pi OS Lite (64-bit) operating system to put onto the SD card.
 - Within the settings, choose a username, password, SSID for your wifi, and the password.
 - Set up a hostname and Enable SSH. Remember all of these credentials as they will be used to set up the server
