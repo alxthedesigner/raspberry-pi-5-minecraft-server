@@ -1,0 +1,15 @@
+[Unit]
+Description=Minecraft Player Portal
+After=network.target minecraft-manager.service
+Requires=minecraft-manager.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/minecraft-manager/player-portal
+ExecStart=/home/pi/minecraft-manager/player-portal/venv/bin/gunicorn --bind 127.0.0.1:5000 app:app
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,14 @@
+[Unit]
+Description=Minecraft Manager API Backend
+After=network.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/minecraft-manager/pi-backend
+ExecStart=/home/pi/minecraft-manager/pi-backend/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8080
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

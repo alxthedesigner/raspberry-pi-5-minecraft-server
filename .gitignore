@@ -1,0 +1,42 @@
+# Secrets and local settings — never commit these
+.env
+*.env
+!.env.example
+*.key
+*.crt
+*.pem
+*.p12
+
+# Minecraft server data (world, players, access lists, settings with passwords)
+world/
+world_*/
+server.properties
+whitelist.json
+whitelist_requests.json
+ops.json
+banned-ips.json
+banned-players.json
+usercache.json
+logs/
+crash-reports/
+*.jar
+
+# Backups
+*.bak
+*.bak-*
+*.bak-*/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/

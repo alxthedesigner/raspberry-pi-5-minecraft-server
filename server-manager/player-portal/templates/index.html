@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Server Status — Minecraft Server{% endblock %}
+
+{% block content %}
+
+<!-- Hero status banner -->
+<div class="hero {{ 'hero--online' if online else 'hero--offline' }}">
+  <div class="hero-glow"></div>
+  <div class="hero-content">
+    <div class="status-badge {{ 'status-badge--online' if online else 'status-badge--offline' }}">
+      <span class="status-badge-dot"></span>
+      <span>{{ 'Online: Minecraft' if online else 'Offline' }}</span>
+    </div>
+    <h1 class="hero-title">The Forgotten Realm (Modded)</h1>
+    <p class="hero-subtitle">Minecraft {{ version }} &nbsp;·&nbsp; {{ loader }}</p>
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <span class="hero-stat-value" id="player-count">{{ player_count }}</span>
+        <span class="hero-stat-label">Players Online</span>
+      </div>
+      <div class="hero-stat-divider"></div>
+      <div class="hero-stat">
+        <span class="hero-stat-value">{{ mod_count }}</span>
+        <span class="hero-stat-label">Mods Loaded</span>
+      </div>
+    </div>
+    {% if not online %}
+    <form method="POST" action="/wake" class="mt-4">
+      <button type="submit" class="btn btn--wake">
+        <i class="bi bi-power"></i> Wake Server
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Cards grid -->
+<div class="cards-grid">
+
+  <!-- Players card -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <span class="card-icon card-icon--green"><i class="bi bi-people-fill"></i></span>
+        <h2 class="card-title">Players Online</h2>
+      </div>
+    </div>
+    <div class="card-body" id="players-list">
+      {% if online and players %}
+        <ul class="player-list">
+          {% for player in players %}
+          <li class="player-item">
+            <img src="https://mc-heads.net/avatar/{{ player }}/32" width="32" height="32"
+                 class="player-avatar" alt="{{ player }}"
+                 onerror="this.src='https://mc-heads.net/avatar/Steve/32'">
+            <span class="player-name">{{ player }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      {% elif online %}
+        <div class="empty-state">
+          <i class="bi bi-moon-stars"></i>
+          <p>No players online right now.</p>
+        </div>
+      {% else %}
+        <div class="empty-state empty-state--danger">
+          <i class="bi bi-plug-fill"></i>
+          <p>Server is offline.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Mods card -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-header-left">
+        <span class="card-icon card-icon--amber"><i class="bi bi-puzzle-fill"></i></span>
+        <h2 class="card-title">Mods <span class="badge">{{ mod_count }}</span></h2>
+      </div>
+      {% if mods %}
+      <a href="/mods/download-all" class="btn btn--download-all">
+        <i class="bi bi-download"></i> Download All
+      </a>
+      {% endif %}
+    </div>
+    <div class="card-body">
+      {% if mods %}
+        <ul class="mod-list">
+          {% for mod in mods %}
+          <li class="mod-item">
+            <div class="mod-info">
+              <span class="mod-name">{{ mod.display }}</span>
+              <span class="mod-filename">{{ mod.filename }}</span>
+            </div>
+            <a href="/mods/download/{{ mod.filename }}" class="btn btn--icon" title="Download {{ mod.filename }}">
+              <i class="bi bi-download"></i>
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="empty-state">
+          <i class="bi bi-inbox"></i>
+          <p>No mods found.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+
+<!-- How to join -->
+<div class="card card--full mt-section">
+  <div class="card-header">
+    <div class="card-header-left">
+      <span class="card-icon card-icon--blue"><i class="bi bi-controller"></i></span>
+      <h2 class="card-title">How to Join</h2>
+    </div>
+  </div>
+  <div class="card-body">
+    <ul class="join-steps">
+      <li>
+        <div>
+          <span class="step-heading">1. Install: NeoForge Client</span>
+          <ul class="step-list">
+            <li>You must have a previously played install of Minecraft before continuing. So open your Minecraft game and enter the home screen. Now close it. This step generates the necessary files to place the mods folder and other files we need to install this client.</li>
+            <li>Install the NeoForge 26.3 installer (the same NeoForge version as the server) for Minecraft version 26.3 — <a class="step-link" href="https://neoforged.net/" target="_blank" rel="noopener">neoforged.net</a></li>
+            <li>Open NeoForge, click "Install client", then click "Proceed" </li>
+          </ul>
+        </div>
+      </li>
+
+      <li>
+        <div>
+          <span class="step-heading">2. Install: Tailscale VPN</span>
+          <ul class="step-list">
+            <li>Install the free Tailscale VPN app and create an account — <a class="step-link" href="https://tailscale.com/download" target="_blank" rel="noopener">tailscale.com/download</a></li>
+            <li>Accept the Tailscale invite from the admin.</li>
+            <li>Under <strong>Machines</strong>, find the Minecraft server machine the admin shared with you and copy its IP address — you'll use this in Minecraft "Multiplayer".</li>
+          </ul>
+        </div>
+      </li>
+
+      <li>
+        <div>
+          <span class="step-heading">3. Download Mods</span>
+          <ul class="step-list">
+            <li>Download the full mod list above and unzip the files.</li>
+            <li>On <strong>PC</strong>, drop the <code>.jar</code> files into <code>.minecraft/mods</code> inside your Minecraft game folder.</li>
+            <li>On <strong>Mac</strong>, drop the <code>.jar</code> files into <code>~/Library/Application Support/minecraft/mods</code>.</li>
+            <li>If no <code>mods</code> folder exists, create one first. Need help finding the folder? <a class="step-link" href="https://www.wikihow.com/Access-Your-.Minecraft-Folder-on-the-Computer" target="_blank" rel="noopener">wikihow guide</a></li>
+            <li>Make sure you are on admin's server whitelist</li>
+          </ul>
+        </div>
+      </li>
+      <li>
+        <div>
+          <span class="step-heading">4. Connect</span>
+          <ul class="step-list">
+            <li>In <strong>Minecraft Launcher</strong>: If NeoForge 21.6.20 is not listed, go to <strong>→ Installations → New Installation</strong> and choose the version we need. Otherwise, launch Minecraft {{ version }} using theNeoForge profile</li>
+            <li>In Minecraft, go to <strong>Multiplayer → Direct Connection</strong> and paste the Tailscale IP address from Step 2.</li>
+            <li>Send admin any error messages you exerience.</li>
+          </ul>
+        </div>
+      </li>
+    </ul>
+  </div>
+</div>
+
+{% endblock %}
