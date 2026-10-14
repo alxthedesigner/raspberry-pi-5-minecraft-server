@@ -8,7 +8,7 @@ load_dotenv()
 
 import os
 import requests
-from flask import Flask, render_template, redirect, url_for, flash, jsonify, Response, stream_with_context
+from flask import Flask, render_template, redirect, url_for, flash, jsonify, request, Response, stream_with_context
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET", "minecraft-portal-secret-change-me")
@@ -54,11 +54,18 @@ def index():
     status = _api_get("/api/status", {})
     players_data = _api_get("/api/players", {})
     mods_data = _api_get("/api/mods", {})
+    packages_data = _api_get("/api/packages", {})
 
     online = status.get("minecraft_online", False)
     players = players_data.get("players", [])
     enabled_mods = mods_data.get("enabled", [])
     mods = [{"filename": m["filename"], "display": _display_name(m["filename"])} for m in enabled_mods]
+    active = packages_data.get("active", "")
+    packages = [
+        {"name": p["name"], "count": sum(1 for on in p.get("mods", {}).values() if on), "active": p["name"] == active}
+        for p in packages_data.get("packages", [])
+    ]
+    packages = sorted((p for p in packages if p["count"]), key=lambda p: (not p["active"], p["name"].lower()))
 
     return render_template(
         "index.html",
@@ -67,8 +74,9 @@ def index():
         player_count=len(players),
         mods=mods,
         mod_count=len(mods),
-        version=status.get("version", "1.21.7"),
-        loader=status.get("loader", "NeoForge 21.6.20"),
+        packages=packages,
+        version=status.get("version", "?"),
+        loader=status.get("loader", "NeoForge"),
     )
 
 
@@ -105,6 +113,24 @@ def download_mod(filename: str):
         stream_with_context(r.iter_content(chunk_size=8192)),
         content_type="application/java-archive",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@app.route("/packages/download")
+def download_packages():
+    names = request.args.getlist("name")
+    if not names:
+        flash("Pick at least one package to download.", "danger")
+        return redirect(url_for("index"))
+    r = requests.get(f"{API_BASE}/api/packages/download", params=[("name", n) for n in names],
+                     headers=_api_headers(), stream=True, timeout=300)
+    if not r.ok:
+        flash("Could not download that package.", "danger")
+        return redirect(url_for("index"))
+    return Response(
+        stream_with_context(r.iter_content(chunk_size=64 * 1024)),
+        content_type="application/zip",
+        headers={"Content-Disposition": r.headers.get("Content-Disposition", "attachment; filename=mod-packages.zip")},
     )
 
 

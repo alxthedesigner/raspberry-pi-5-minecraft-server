@@ -30,7 +30,8 @@ Players and the admin reach the Pi over [Tailscale](https://tailscale.com), so n
 - Each mod in a package has a checkbox. Use the filter plus **Check All / Uncheck All**, or Shift/⌘-click to highlight mods and use the **Highlighted** buttons.
 - **Activate Package on Server** enables the checked mods in that package and moves every other mod into `mods_disabled/`. Nothing is deleted. Restart the server afterwards.
 - Uploaded mods stay disabled until their package is activated.
-- Packages are stored in the admin app's local settings on your computer.
+- **Download Packages…** zips one or more packages' checked mods. One package gives a zip of jars ready for a `mods` folder; several give one zip with a folder per package.
+- Packages are stored in the admin app's settings and published to the Pi (`mod_packages.json` in the server folder, mod file names only) shortly after every change, so the player portal can offer them.
 
 ---
 
@@ -123,6 +124,8 @@ sudo systemctl enable --now minecraft-player-portal
 ```
 
 The portal listens on `127.0.0.1:5000`. To share it with players over your tailnet only, use `tailscale serve` on the Pi.
+
+Players can see server status and who's online, download the **active mod package** (or tick several packages and download them together), and follow the join steps. Downloads go through the portal to the API, so the API key never reaches players' browsers.
 
 ---
 

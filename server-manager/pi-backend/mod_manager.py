@@ -1,11 +1,18 @@
 """
 Mod management: toggle mods between mods/ and mods_disabled/.
 """
+import json
 import os
+import re
 import shutil
+import tempfile
 import zipfile
 from pathlib import Path
 from config import settings
+
+# Mod packages are defined in the admin app and published here so the
+# player portal can offer them for download.
+PACKAGES_FILE = "mod_packages.json"
 
 
 def _ensure_dirs():
@@ -86,3 +93,95 @@ def add_mod(filename: str, fileobj) -> dict:
         tmp.unlink(missing_ok=True)
         return {"success": False, "message": f"Failed to save {name}: {e}"}
     return {"success": True, "message": f"{name} added (restart required)"}
+
+
+# ── Packages ──────────────────────────────────────────────────────────────────
+
+def _packages_path() -> Path:
+    return Path(settings.server_dir) / PACKAGES_FILE
+
+
+def get_packages() -> dict:
+    """{"packages": [{"name": str, "mods": {filename: checked}}], "active": str}"""
+    try:
+        data = json.loads(_packages_path().read_text())
+    except (OSError, ValueError):
+        data = {}
+    return {"packages": data.get("packages", []), "active": data.get("active", "")}
+
+
+def save_packages(packages: list, active: str) -> dict:
+    clean = []
+    for pkg in packages:
+        name = str(pkg.get("name", "")).strip()
+        mods = {Path(str(f)).name: bool(on) for f, on in dict(pkg.get("mods", {})).items()
+                if str(f).lower().endswith(".jar")}
+        if name:
+            clean.append({"name": name, "mods": mods})
+    path = _packages_path()
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps({"packages": clean, "active": active}, indent=2))
+    tmp.replace(path)
+    return {"success": True, "message": f"Saved {len(clean)} package(s)"}
+
+
+def _find_jar(filename: str):
+    name = Path(filename).name
+    if not name.lower().endswith(".jar"):
+        return None
+    for folder in (settings.mods_dir, settings.mods_disabled_dir):
+        path = Path(folder) / name
+        if path.is_file():
+            return path
+    return None
+
+
+def safe_name(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9 ._-]", "_", name).strip(" .") or "package"
+
+
+def zip_packages(names: list):
+    """Zip the checked mods of the named packages.
+
+    One package puts the jars at the top level (ready to drop into mods/);
+    several put each package in its own folder. Returns (file, missing) with the
+    file positioned at the start, or (None, error message).
+    """
+    by_name = {p["name"]: p for p in get_packages()["packages"]}
+    chosen = [by_name[n] for n in dict.fromkeys(names) if n in by_name]
+    if not chosen:
+        return None, "No matching packages"
+    entries = []
+    for pkg in chosen:
+        prefix = "" if len(chosen) == 1 else safe_name(pkg["name"]) + "/"
+        entries += [(f, prefix) for f, checked in sorted(pkg["mods"].items()) if checked]
+    return _zip(entries)
+
+
+def zip_files(filenames: list):
+    """Zip mod jars (from mods/ or mods_disabled/) at the top level. Returns (file, missing)."""
+    return _zip([(f, "") for f in filenames])
+
+
+def _zip(entries: list):
+    buf = tempfile.SpooledTemporaryFile(max_size=16 * 1024 * 1024)
+    missing = []
+    # Jars are already compressed, so store them as-is (much less CPU on the Pi)
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+        for filename, prefix in entries:
+            path = _find_jar(filename)
+            if path:
+                zf.write(path, prefix + path.name)
+            else:
+                missing.append(filename)
+    buf.seek(0)
+    return buf, missing
+
+
+def iter_file(f, chunk_size: int = 64 * 1024):
+    with f:
+        while True:
+            chunk = f.read(chunk_size)
+            if not chunk:
+                break
+            yield chunk

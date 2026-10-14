@@ -106,6 +106,24 @@ class ApiClient:
         except Exception as e:
             return {"error": str(e)}
 
+    def save_packages(self, packages: list, active: str):
+        return self._put("/api/packages", {"packages": packages, "active": active})
+
+    def download_packages(self, names: list, dest_path: str) -> Optional[dict]:
+        """Save a zip of the named packages' checked mods to dest_path."""
+        try:
+            with requests.get(f"{self._base()}/api/packages/download", params=[("name", n) for n in names],
+                              headers=self._headers(), stream=True, timeout=300) as r:
+                r.raise_for_status()
+                with open(dest_path, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=64 * 1024):
+                        f.write(chunk)
+                return {"success": True, "missing": int(r.headers.get("X-Missing-Mods", 0))}
+        except requests.ConnectionError:
+            return None
+        except Exception as e:
+            return {"error": str(e)}
+
     # ── Config ────────────────────────────────────────────────────────────────
 
     def get_server_properties(self): return self._get("/api/config/server-properties")

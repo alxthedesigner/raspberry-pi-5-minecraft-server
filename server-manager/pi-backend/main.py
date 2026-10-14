@@ -8,14 +8,14 @@ load_dotenv()
 import asyncio
 import re
 from contextlib import asynccontextmanager
-from fastapi import Depends, FastAPI, File, HTTPException, Request, Security, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Security, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 import io
 import zipfile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import List, Optional
 
 import psutil
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -311,6 +311,34 @@ def enable_mod(filename: str):
 @app.post("/api/mods/{filename}/disable", dependencies=_auth)
 def disable_mod(filename: str):
     return mm.disable_mod(filename)
+
+
+# ─── Mod packages ─────────────────────────────────────────────────────────────
+
+class PackagesPayload(BaseModel):
+    packages: List[dict]
+    active: str = ""
+
+
+@app.get("/api/packages", dependencies=_auth)
+def get_packages():
+    return mm.get_packages()
+
+
+@app.put("/api/packages", dependencies=_auth)
+def put_packages(body: PackagesPayload):
+    return mm.save_packages(body.packages, body.active)
+
+
+@app.get("/api/packages/download", dependencies=_auth)
+def download_packages(name: List[str] = Query(...)):
+    buf, missing = mm.zip_packages(name)
+    if buf is None:
+        raise HTTPException(status_code=404, detail=missing)
+    names = list(dict.fromkeys(name))
+    filename = f"{mm.safe_name(names[0])}.zip" if len(names) == 1 else "mod-packages.zip"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"', "X-Missing-Mods": str(len(missing))}
+    return StreamingResponse(mm.iter_file(buf), media_type="application/zip", headers=headers)
 
 
 # ─── Configuration ────────────────────────────────────────────────────────────

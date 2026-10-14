@@ -110,6 +110,40 @@
 
 </div>
 
+<!-- Mod packages -->
+{% if packages %}
+<div class="card card--full mt-section">
+  <form method="GET" action="/packages/download">
+    <div class="card-header">
+      <div class="card-header-left">
+        <span class="card-icon card-icon--green"><i class="bi bi-box-seam"></i></span>
+        <h2 class="card-title">Mod Packages <span class="badge">{{ packages|length }}</span></h2>
+      </div>
+      <button type="submit" class="btn btn--download-all"><i class="bi bi-download"></i> Download Selected</button>
+    </div>
+    <div class="card-body">
+      <p class="card-note">Download the <strong>active</strong> package to get exactly the mods the server is running, then unzip it into your <code>mods</code> folder. Tick several packages to get them in one zip, with a folder per package.</p>
+      <ul class="package-list">
+        {% for pkg in packages %}
+        <li class="package-item">
+          <label class="package-check">
+            <input type="checkbox" name="name" value="{{ pkg.name }}" {% if pkg.active %}checked{% endif %}>
+            <span class="mod-info">
+              <span class="mod-name">{{ pkg.name }}{% if pkg.active %} <span class="pill pill--ok">Active on server</span>{% endif %}</span>
+              <span class="mod-filename">{{ pkg.count }} mods</span>
+            </span>
+          </label>
+          <a href="/packages/download?name={{ pkg.name|urlencode }}" class="btn btn--icon" title="Download {{ pkg.name }}">
+            <i class="bi bi-download"></i>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </form>
+</div>
+{% endif %}
+
 <!-- How to join -->
 <div class="card card--full mt-section">
   <div class="card-header">
@@ -146,7 +180,7 @@
         <div>
           <span class="step-heading">3. Download Mods</span>
           <ul class="step-list">
-            <li>Download the full mod list above and unzip the files.</li>
+            <li>Download the <strong>active</strong> mod package above and unzip it. Use exactly these files — different versions won't connect.</li>
             <li>On <strong>PC</strong>, drop the <code>.jar</code> files into <code>.minecraft/mods</code> inside your Minecraft game folder.</li>
             <li>On <strong>Mac</strong>, drop the <code>.jar</code> files into <code>~/Library/Application Support/minecraft/mods</code>.</li>
             <li>If no <code>mods</code> folder exists, create one first. Need help finding the folder? <a class="step-link" href="https://www.wikihow.com/Access-Your-.Minecraft-Folder-on-the-Computer" target="_blank" rel="noopener">wikihow guide</a></li>
@@ -158,9 +192,9 @@
         <div>
           <span class="step-heading">4. Connect</span>
           <ul class="step-list">
-            <li>In <strong>Minecraft Launcher</strong>: If NeoForge 21.6.20 is not listed, go to <strong>→ Installations → New Installation</strong> and choose the version we need. Otherwise, launch Minecraft {{ version }} using theNeoForge profile</li>
+            <li>In <strong>Minecraft Launcher</strong>: If {{ loader }} is not listed, go to <strong>→ Installations → New Installation</strong> and choose the version we need. Otherwise, launch Minecraft {{ version }} using the NeoForge profile</li>
             <li>In Minecraft, go to <strong>Multiplayer → Direct Connection</strong> and paste the Tailscale IP address from Step 2.</li>
-            <li>Send admin any error messages you exerience.</li>
+            <li>Send the admin any error messages you get.</li>
           </ul>
         </div>
       </li>

@@ -5,11 +5,13 @@ Packages live in the app's settings. Activating a package uses the existing
 enable/disable API to move mods between mods/ and mods_disabled/ on the Pi:
 checked mods in the package are enabled, every other mod is disabled.
 """
+import json
+import re
 import os
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem,
     QPushButton, QLabel, QLineEdit, QMessageBox, QFileDialog, QInputDialog,
-    QMenu, QSplitter, QAbstractItemView
+    QMenu, QSplitter, QAbstractItemView, QDialog, QDialogButtonBox
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor
@@ -39,6 +41,12 @@ class ModsTab(QWidget):
         self._loaded = False   # server mod list fetched at least once
         self._populating = False
         self._busy = False
+        self._published = False   # packages sent to the Pi at least once this session
+        # Package edits are published to the Pi (for downloads and the player portal)
+        # shortly after the last change
+        self._publish_timer = QTimer(self)
+        self._publish_timer.setSingleShot(True)
+        self._publish_timer.timeout.connect(self._publish)
         self._build_ui()
         self._show_packages()
         QTimer.singleShot(700, self._refresh)
@@ -75,6 +83,9 @@ class ModsTab(QWidget):
         pkg_btns.addWidget(self.rename_btn)
         pkg_btns.addWidget(self.delete_btn)
         ll.addLayout(pkg_btns)
+        self.download_btn = theme.button("⬇  Download Packages…", None, self._download_packages,
+                                         tip="Download one or more packages' checked mods as a zip")
+        ll.addWidget(self.download_btn)
         splitter.addWidget(left)
 
         # ── Right: mods in the selected package ───────────────────────────────
@@ -166,6 +177,13 @@ class ModsTab(QWidget):
     def _save(self):
         config.mod_packages = self._packages
         config.active_package = self._active
+        self._publish_timer.start(800)
+
+    def _publish(self):
+        packages = json.loads(json.dumps(self._packages))
+        active = self._active
+        self._published = True
+        run_in_thread(lambda: api.save_packages(packages, active), lambda _: None)
 
     def _show_packages(self, select: str = None):
         """Rebuild the package list, keeping (or moving to) the selected package."""
@@ -289,7 +307,7 @@ class ModsTab(QWidget):
                 self.mod_list.addItem(item)
         self._populating = False
 
-        for w in [self.rename_btn, self.delete_btn, self.add_mods_btn, self.activate_btn, *self._mod_btns]:
+        for w in [self.rename_btn, self.delete_btn, self.download_btn, self.add_mods_btn, self.activate_btn, *self._mod_btns]:
             w.setEnabled(pkg is not None and not self._busy)
         self.new_btn.setEnabled(not self._busy)
         self._apply_filter()
@@ -523,6 +541,77 @@ class ModsTab(QWidget):
 
     # ── Server state ──────────────────────────────────────────────────────────
 
+    # ── Downloading ───────────────────────────────────────────────────────────
+
+    def _download_packages(self):
+        if not self._packages or self._busy:
+            return
+        current = self._current()
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Download Packages")
+        dlg.setMinimumWidth(420)
+        layout = QVBoxLayout(dlg)
+        layout.setContentsMargins(20, 18, 20, 16)
+        layout.setSpacing(10)
+        layout.addWidget(theme.label("Download Packages", "h2"))
+        layout.addWidget(theme.label(
+            "Each package's checked mods are zipped. One package downloads as a zip of jars ready "
+            "for a mods folder; several download as one zip with a folder per package.", "muted", wrap=True))
+        choices = QListWidget()
+        for pkg in self._packages:
+            on = sum(1 for v in pkg["mods"].values() if v)
+            suffix = "  (active)" if pkg["name"] == self._active else ""
+            item = QListWidgetItem(f"{pkg['name']}{suffix}  —  {on} mods")
+            item.setData(Qt.ItemDataRole.UserRole, pkg["name"])
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Checked if pkg is current else Qt.CheckState.Unchecked)
+            choices.addItem(item)
+        layout.addWidget(choices)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Cancel)
+        ok = theme.button("Download", "primary")
+        buttons.addButton(ok, QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+        if dlg.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        names = [choices.item(i).data(Qt.ItemDataRole.UserRole) for i in range(choices.count())
+                 if choices.item(i).checkState() == Qt.CheckState.Checked]
+        if not names:
+            QMessageBox.information(self, "Download Packages", "Tick at least one package.")
+            return
+        default = (re.sub(r"[^A-Za-z0-9 ._-]", "_", names[0]).strip() or "package") if len(names) == 1 else "mod-packages"
+        dest, _ = QFileDialog.getSaveFileName(
+            self, "Save Packages", os.path.join(os.path.expanduser("~/Downloads"), default + ".zip"), "Zip files (*.zip)"
+        )
+        if not dest:
+            return
+
+        packages = json.loads(json.dumps(self._packages))
+        active = self._active
+
+        def do():
+            # Publish first so the Pi zips exactly what's shown here
+            published = api.save_packages(packages, active)
+            if not _ok(published):
+                return published
+            return api.download_packages(names, dest)
+
+        def on_done(result):
+            self._set_busy(False)
+            if not result or not result.get("success"):
+                QMessageBox.warning(self, "Download Packages", f"Download failed: {_msg(result)}")
+                return
+            note = ""
+            if result.get("missing"):
+                note = f"\n\n{result['missing']} checked mod(s) aren't on the server and were left out."
+            QMessageBox.information(self, "Download Packages", f"Saved to:\n{dest}{note}")
+
+        self._set_busy(True, f"Downloading {len(names)} package(s)…")
+        run_in_thread(do, on_done)
+
     def _set_busy(self, busy: bool, text: str = ""):
         self._busy = busy
         self._show_package()
@@ -540,6 +629,8 @@ class ModsTab(QWidget):
         self._enabled = {m["filename"]: m["size_mb"] for m in data.get("enabled", [])}
         self._disabled = {m["filename"]: m["size_mb"] for m in data.get("disabled", [])}
         self._loaded = True
+        if not self._published:
+            self._publish()
         self._show_package()
 
     def _update_summary(self):
