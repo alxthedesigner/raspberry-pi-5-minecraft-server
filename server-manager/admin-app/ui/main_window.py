@@ -13,6 +13,7 @@ from ui.console_tab import ConsoleTab
 from ui.players_tab import PlayersTab
 from ui.mods_tab import ModsTab
 from ui.config_tab import ConfigTab
+from ui.instructions_tab import InstructionsTab
 from ui.settings_dialog import SettingsDialog
 from ui import theme
 from config import config
@@ -63,6 +64,7 @@ class MainWindow(QMainWindow):
         self.players_tab = PlayersTab()
         self.mods_tab = ModsTab()
         self.config_tab = ConfigTab()
+        self.instructions_tab = InstructionsTab()
 
         pages = [
             ("dashboard", "Dashboard", "Server status, controls and Pi health", self.dashboard_tab),
@@ -70,6 +72,7 @@ class MainWindow(QMainWindow):
             ("players",   "Players",   "Who's online, the whitelist and join requests", self.players_tab),
             ("mods",      "Mods",      "Group mods into packages and choose what runs on the server", self.mods_tab),
             ("config",    "Config",    "server.properties, JVM arguments and mod configs", self.config_tab),
+            ("instructions", "Instructions", "How to install everything and join the server", self.instructions_tab),
         ]
 
         central = QWidget()
@@ -216,6 +219,7 @@ class MainWindow(QMainWindow):
         self.players_tab._refresh()
         self.mods_tab._refresh()
         self.config_tab._load_all()
+        self.instructions_tab.refresh()
 
     def closeEvent(self, event):
         self.console_tab.stop_streaming()

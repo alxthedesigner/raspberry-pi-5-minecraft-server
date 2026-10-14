@@ -124,6 +124,52 @@ class ApiClient:
         except Exception as e:
             return {"error": str(e)}
 
+    # ── Player portal ─────────────────────────────────────────────────────────
+
+    def get_portal(self): return self._get("/api/portal")
+    def start_portal(self): return self._post("/api/portal/start")
+    def stop_portal(self): return self._post("/api/portal/stop")
+
+    # ── World backup ──────────────────────────────────────────────────────────
+
+    def backup_world(self, dest_path: str, progress: dict = None) -> Optional[dict]:
+        """Download a zip of the world to dest_path. `progress` gets "done"/"total" bytes as it goes.
+
+        Writes to dest_path + ".part" and only renames it once the zip is complete and valid.
+        """
+        import zipfile
+        part = dest_path + ".part"
+        progress = progress if progress is not None else {}
+        try:
+            # The Pi needs a while to flush and zip the world before the first byte arrives
+            with requests.get(f"{self._base()}/api/world/backup", headers=self._headers(),
+                              stream=True, timeout=(10, 900)) as r:
+                if r.status_code != 200:
+                    try:
+                        detail = r.json().get("detail", r.reason)
+                    except ValueError:
+                        detail = r.reason
+                    return {"error": f"HTTP {r.status_code}: {detail}"}
+                progress["total"] = int(r.headers.get("Content-Length", 0))
+                expected_files = int(r.headers.get("X-World-Files", 0))
+                with open(part, "wb") as f:
+                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                        f.write(chunk)
+                        progress["done"] = progress.get("done", 0) + len(chunk)
+            with zipfile.ZipFile(part) as zf:
+                files = len(zf.namelist())
+            if expected_files and files != expected_files:
+                raise ValueError(f"zip has {files} files, expected {expected_files}")
+            os.replace(part, dest_path)
+            return {"success": True, "files": files, "bytes": os.path.getsize(dest_path)}
+        except requests.ConnectionError:
+            return None
+        except Exception as e:
+            return {"error": str(e)}
+        finally:
+            if os.path.exists(part):
+                os.remove(part)
+
     # ── Config ────────────────────────────────────────────────────────────────
 
     def get_server_properties(self): return self._get("/api/config/server-properties")

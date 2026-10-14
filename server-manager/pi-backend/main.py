@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import asyncio
+import os
+import subprocess
 import re
 from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Security, UploadFile, WebSocket, WebSocketDisconnect
@@ -28,6 +30,7 @@ from log_streamer import log_streamer
 from alert_monitor import alert_monitor
 import whitelist_manager as wm
 import mod_manager as mm
+import backup_manager as bm
 import config_manager as cm
 
 
@@ -195,6 +198,7 @@ def send_command(request: Request, req: CommandRequest):
 def get_system_stats():
     cpu = psutil.cpu_percent(interval=0.2)
     vm = psutil.virtual_memory()
+    swap = psutil.swap_memory()
     disk = psutil.disk_usage("/")
     temps = {}
     try:
@@ -208,6 +212,9 @@ def get_system_stats():
         "ram_used_mb": round(vm.used / 1024 / 1024),
         "ram_total_mb": round(vm.total / 1024 / 1024),
         "ram_percent": vm.percent,
+        "swap_used_mb": round(swap.used / 1024 / 1024),
+        "swap_total_mb": round(swap.total / 1024 / 1024),
+        "swap_percent": swap.percent,
         "disk_used_gb": round(disk.used / 1024 / 1024 / 1024, 1),
         "disk_total_gb": round(disk.total / 1024 / 1024 / 1024, 1),
         "disk_percent": disk.percent,
@@ -307,6 +314,58 @@ def enable_mod(filename: str):
 @app.post("/api/mods/{filename}/disable", dependencies=_auth)
 def disable_mod(filename: str):
     return mm.disable_mod(filename)
+
+
+# ─── World backup ─────────────────────────────────────────────────────────────
+
+@app.get("/api/world/backup", dependencies=_auth)
+def world_backup():
+    try:
+        path, count = bm.create_backup(server.is_tmux_running())
+    except RuntimeError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Backup failed: {e}")
+    headers = {
+        "Content-Disposition": 'attachment; filename="minecraft_world_backup.zip"',
+        "Content-Length": str(os.path.getsize(path)),
+        "X-World-Files": str(count),
+    }
+    return StreamingResponse(bm.stream_and_delete(path), media_type="application/zip", headers=headers)
+
+
+# ─── Player portal on/off ─────────────────────────────────────────────────────
+# The portal service is disabled at boot, so it stays off after the Pi restarts
+# until it's turned on from the admin app.
+
+PORTAL_SERVICE = "minecraft-player-portal.service"
+
+
+def _portal_state() -> str:
+    r = subprocess.run(["systemctl", "is-active", PORTAL_SERVICE], capture_output=True, text=True)
+    return r.stdout.strip() or "unknown"
+
+
+@app.get("/api/portal", dependencies=_auth)
+def portal_status():
+    state = _portal_state()
+    return {"running": state == "active", "state": state}
+
+
+@app.post("/api/portal/{action}", dependencies=_auth)
+def portal_control(action: str):
+    if action not in ("start", "stop"):
+        raise HTTPException(status_code=404, detail="Unknown action")
+    r = subprocess.run(["sudo", "-n", "systemctl", action, PORTAL_SERVICE],
+                       capture_output=True, text=True, timeout=60)
+    state = _portal_state()
+    running = state == "active"
+    ok = r.returncode == 0 and running == (action == "start")
+    if ok:
+        message = "Player portal is on" if running else "Player portal is off"
+    else:
+        message = (r.stderr.strip() or f"Player portal is {state}")[:300]
+    return {"success": ok, "running": running, "state": state, "message": message}
 
 
 # ─── Mod packages ─────────────────────────────────────────────────────────────

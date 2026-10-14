@@ -1,8 +1,11 @@
 """
 Dashboard tab: server status, start/stop/restart/wake controls, alert banner.
 """
+import os
+from datetime import datetime
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QProgressBar, QSizePolicy
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QProgressBar, QSizePolicy,
+    QFileDialog, QMessageBox
 )
 from PyQt6.QtCore import QTimer, Qt, pyqtSignal
 from api_client import api
@@ -53,7 +56,7 @@ class StatTile(QWidget):
         self.bar.setFixedHeight(6)
         body.addWidget(self.bar)
 
-    def set(self, value: str, detail: str, pct: float = None):
+    def set(self, value: str, detail: str, pct: float = None, warn: float = 60, danger: float = 85):
         self.value.setText(value)
         self.detail.setText(detail)
         if pct is None:
@@ -61,7 +64,7 @@ class StatTile(QWidget):
             return
         self.bar.show()
         self.bar.setValue(int(pct))
-        theme.set_prop(self.bar, "level", "danger" if pct >= 85 else "warn" if pct >= 60 else "ok")
+        theme.set_prop(self.bar, "level", "danger" if pct >= danger else "warn" if pct >= warn else "ok")
 
 
 class DashboardTab(QWidget):
@@ -108,20 +111,54 @@ class DashboardTab(QWidget):
         self.btn_wake    = self._make_btn("⚡  Wake",    "info",    self._wake)
         for btn in (self.btn_start, self.btn_stop, self.btn_restart, self.btn_wake):
             row.addWidget(btn)
+        self.btn_backup = self._make_btn("⬇  Backup World", None, self._backup_world)
+        self.btn_backup.setToolTip("Download a zip of the whole world to this computer")
+        row.addWidget(self.btn_backup)
         sb.addLayout(row)
+
+        self.backup_bar = QProgressBar()
+        self.backup_bar.setTextVisible(False)
+        self.backup_bar.setFixedHeight(6)
+        self.backup_bar.hide()
+        sb.addWidget(self.backup_bar)
 
         self.message_label = theme.label(" ", "caption")
         sb.addWidget(self.message_label)
         root.addWidget(status_card)
+
+        # ── Player portal on/off ──────────────────────────────────────────────
+        portal_card, pb = theme.card()
+        prow = QHBoxLayout()
+        prow.setSpacing(12)
+        pcol = QVBoxLayout()
+        pcol.setSpacing(2)
+        ptitle = QHBoxLayout()
+        ptitle.setSpacing(8)
+        ptitle.addWidget(theme.label("Player Portal", "h2"))
+        self.portal_pill = theme.label("● Checking", "pill")
+        ptitle.addWidget(self.portal_pill)
+        ptitle.addStretch()
+        pcol.addLayout(ptitle)
+        pcol.addWidget(theme.label(
+            "The website where friends see server status and download mod packages. "
+            "It's always off after the Pi restarts. Minecraft itself works either way.", "caption", wrap=True))
+        prow.addLayout(pcol, 1)
+        self.btn_portal = self._make_btn("Turn On", None, self._toggle_portal)
+        self.btn_portal.setEnabled(False)
+        prow.addWidget(self.btn_portal, 0, Qt.AlignmentFlag.AlignVCenter)
+        pb.addLayout(prow)
+        self._portal_running = None
+        self._portal_busy = False
 
         # ── Pi system stats ───────────────────────────────────────────────────
         stats = QGridLayout()
         stats.setSpacing(14)
         self._cpu_tile = StatTile("CPU")
         self._ram_tile = StatTile("Memory")
+        self._swap_tile = StatTile("Swap")
         self._disk_tile = StatTile("Disk")
         self._temp_tile = StatTile("Temperature")
-        for i, tile in enumerate((self._cpu_tile, self._ram_tile, self._disk_tile, self._temp_tile)):
+        for i, tile in enumerate((self._cpu_tile, self._ram_tile, self._swap_tile, self._disk_tile, self._temp_tile)):
             stats.addWidget(tile, 0, i)
             stats.setColumnStretch(i, 1)
         root.addLayout(stats)
@@ -141,9 +178,10 @@ class DashboardTab(QWidget):
             self._info_values[key] = val
         ib.addLayout(self._info_grid)
         root.addWidget(info_card)
+        root.addWidget(portal_card)
 
         # Cards keep their natural height; spare space goes below them
-        for w in (status_card, info_card, *(t.frame for t in (self._cpu_tile, self._ram_tile, self._disk_tile, self._temp_tile))):
+        for w in (status_card, portal_card, info_card, *(t.frame for t in (self._cpu_tile, self._ram_tile, self._swap_tile, self._disk_tile, self._temp_tile))):
             w.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         root.addStretch(1)
 
@@ -167,14 +205,53 @@ class DashboardTab(QWidget):
         self._polling = True
         last_id = self._last_alert_id
         def fetch():
-            return (api.get_status(), api.get_system_stats(), api.get_alerts(last_id))
+            return (api.get_status(), api.get_system_stats(), api.get_alerts(last_id), api.get_portal())
         run_in_thread(fetch, lambda r: self._on_poll_result(*r))
 
-    def _on_poll_result(self, status, sys_stats, alerts_data):
+    def _on_poll_result(self, status, sys_stats, alerts_data, portal=None):
         self._polling = False
         self._apply_status(status)
         self._apply_system_stats(sys_stats)
         self._apply_alerts(alerts_data)
+        self._apply_portal(portal)
+
+    def _apply_portal(self, data):
+        if self._portal_busy:
+            return
+        if not data or "error" in data:
+            self._portal_running = None
+            self.portal_pill.setText("● Unknown")
+            theme.set_prop(self.portal_pill, "state", "off")
+            self.btn_portal.setEnabled(False)
+            return
+        self._portal_running = bool(data.get("running"))
+        self.portal_pill.setText("● On" if self._portal_running else "● Off")
+        theme.set_prop(self.portal_pill, "state", "ok" if self._portal_running else "off")
+        self.btn_portal.setText("Turn Off" if self._portal_running else "Turn On")
+        theme.set_prop(self.btn_portal, "variant", "danger" if self._portal_running else "primary")
+        self.btn_portal.setEnabled(True)
+
+    def _toggle_portal(self):
+        if self._portal_running is None or self._portal_busy:
+            return
+        turning_on = not self._portal_running
+        self._portal_busy = True
+        self.btn_portal.setEnabled(False)
+        self.portal_pill.setText("● Turning on…" if turning_on else "● Turning off…")
+        theme.set_prop(self.portal_pill, "state", "warn")
+
+        def on_done(result):
+            self._portal_busy = False
+            if not result or not result.get("success"):
+                msg = "could not connect to the Pi" if result is None else (result.get("message") or result.get("error", "unknown error"))
+                self.message_label.setText(f"Player portal: {msg}")
+            else:
+                self.message_label.setText(result.get("message", ""))
+            self._apply_portal(result if result and "running" in result else None)
+            if result is None or "running" not in result:
+                run_in_thread(api.get_portal, self._apply_portal)
+
+        run_in_thread(api.start_portal if turning_on else api.stop_portal, on_done)
 
     # ── Apply results (runs on main thread via signal) ────────────────────────
 
@@ -234,7 +311,7 @@ class DashboardTab(QWidget):
 
     def _apply_system_stats(self, data):
         if not data or "error" in data:
-            for tile in (self._cpu_tile, self._ram_tile, self._disk_tile, self._temp_tile):
+            for tile in (self._cpu_tile, self._ram_tile, self._swap_tile, self._disk_tile, self._temp_tile):
                 tile.set("—", "Not reported by the Pi")
             return
         cpu =data.get("cpu_percent", 0)
@@ -243,7 +320,20 @@ class DashboardTab(QWidget):
         ram_used  = data.get("ram_used_mb", 0)
         ram_total = data.get("ram_total_mb", 1)
         ram_pct   = data.get("ram_percent", 0)
-        self._ram_tile.set(f"{ram_pct:.0f}%", f"{ram_used} / {ram_total} MB", ram_pct)
+        # Memory normally sits at 80-90% on a 2 GB Pi running Minecraft, so only go red at 90%
+        self._ram_tile.set(f"{ram_pct:.0f}%", f"{ram_used} / {ram_total} MB", ram_pct, danger=90)
+
+        if "swap_total_mb" in data:
+            swap_used = data.get("swap_used_mb", 0)
+            swap_total = data.get("swap_total_mb", 0)
+            swap_pct = data.get("swap_percent", 0)
+            if swap_total:
+                # Swap is normally near empty; a lot in use means RAM is under pressure
+                self._swap_tile.set(f"{swap_pct:.0f}%", f"{swap_used} / {swap_total} MB", swap_pct, warn=30, danger=65)
+            else:
+                self._swap_tile.set("Off", "No swap configured")
+        else:
+            self._swap_tile.set("—", "Not reported by the Pi")
 
         disk_used  = data.get("disk_used_gb", 0)
         disk_total = data.get("disk_total_gb", 1)
@@ -253,7 +343,9 @@ class DashboardTab(QWidget):
         temps = data.get("temperatures", {})
         if temps:
             hottest = max(temps.values())
-            self._temp_tile.set(f"{hottest}°C", "  ·  ".join(f"{k}: {v}°C" for k, v in temps.items()),
+            def f(c): return c * 9 / 5 + 32
+            self._temp_tile.set(f"{hottest}°C · {f(hottest):.0f}°F",
+                                "  ·  ".join(f"{k}: {v}°C / {f(v):.1f}°F" for k, v in temps.items()),
                                 min(hottest, 100))
         else:
             self._temp_tile.set("N/A", "No sensor data")
@@ -279,6 +371,49 @@ class DashboardTab(QWidget):
             self.message_label.setText(msg)
             self._dispatch_poll()
         run_in_thread(action_fn, on_done)
+
+    def _backup_world(self):
+        stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        dest, _ = QFileDialog.getSaveFileName(
+            self, "Save World Backup",
+            os.path.join(os.path.expanduser("~/Documents"), f"minecraft_world_backup_{stamp}.zip"),
+            "Zip files (*.zip)",
+        )
+        if not dest:
+            return
+        progress = {"done": 0, "total": 0}
+        self.btn_backup.setEnabled(False)
+        self.backup_bar.setRange(0, 0)  # busy until the size is known
+        self.backup_bar.show()
+        self.message_label.setText("Backing up world… the Pi is saving and zipping it (this can take a minute)")
+
+        def tick():
+            done, total = progress["done"], progress["total"]
+            if total:
+                self.backup_bar.setRange(0, 1000)
+                self.backup_bar.setValue(int(done * 1000 / total))
+                self.message_label.setText(f"Downloading world backup… {done / 1e6:,.0f} / {total / 1e6:,.0f} MB")
+
+        timer = QTimer(self)
+        timer.timeout.connect(tick)
+        timer.start(300)
+
+        def on_done(result):
+            timer.stop()
+            self.backup_bar.hide()
+            self.btn_backup.setEnabled(True)
+            if result and result.get("success"):
+                self.message_label.setText(f"World backup saved: {os.path.basename(dest)}")
+                QMessageBox.information(
+                    self, "Backup World",
+                    f"Saved {result['files']} files ({result['bytes'] / 1e6:,.0f} MB) to:\n{dest}",
+                )
+            else:
+                msg = "could not connect to the Pi" if result is None else result.get("error", "unknown error")
+                self.message_label.setText(f"World backup failed: {msg}")
+                QMessageBox.warning(self, "Backup World", f"Backup failed: {msg}")
+
+        run_in_thread(lambda: api.backup_world(dest, progress), on_done)
 
     def _start(self):   self._run_action(api.start_server,   "Starting")
     def _stop(self):    self._run_action(api.stop_server,    "Stopping")

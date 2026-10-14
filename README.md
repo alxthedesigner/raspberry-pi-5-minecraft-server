@@ -112,6 +112,7 @@ Known issues we hit on 26.3:
 - Keep the Pi cool. Check with `vcgencmd measure_temp`; above about 80°C it slows itself down.
 - Exploring new land is the heaviest work. Pre-generating the area around spawn (e.g. with the Chunky mod) helps.
 - Set `max-players` to what your Pi can actually handle.
+- Swap is a safety net, not extra RAM: it stops Linux killing the server when memory runs out, but anything in swap on an SD card is much slower than RAM. On a small-RAM Pi, set `CONF_SWAPSIZE=1024` (or 2048) in `/etc/dphys-swapfile` and `vm.swappiness=10` in `/etc/sysctl.d/99-swappiness.conf`, and keep `-Xmx` within real RAM.
 
 ## 10. Playing on a Steam Deck
 1. In Desktop Mode, install **Prism Launcher** from Discover and sign in with your Microsoft account.

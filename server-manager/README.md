@@ -18,11 +18,12 @@ Players and the admin reach the Pi over [Tailscale](https://tailscale.com), so n
 
 | Page | Features |
 |---|---|
-| **Dashboard** | Server status, Start / Stop / Restart / Wake, Pi CPU, memory, disk and temperature, non-whitelisted join alerts |
+| **Dashboard** | Server status, Start / Stop / Restart / Wake, **Backup World**, Pi CPU, memory, swap, disk and temperature (°C and °F), non-whitelisted join alerts, **Player Portal on/off** |
 | **Console** | Live server log (last 200 lines on connect, follows the log across server restarts), send server commands, optional filter for RCON noise |
 | **Players** | Online players, whitelist editor, approve/deny whitelist requests from the portal |
 | **Mods** | Group mods into **packages**, tick which mods in each package are active, upload many `.jar` files at once, and switch the server to a package in one click |
 | **Config** | Edit `server.properties`, JVM arguments and NeoForge/mod config files |
+| **Instructions** | The player portal's "How to Join" steps (read from the portal's page, so they always match), as a refresher |
 
 ### Mod packages
 
@@ -32,6 +33,10 @@ Players and the admin reach the Pi over [Tailscale](https://tailscale.com), so n
 - Uploaded mods stay disabled until their package is activated.
 - **Download Packages…** zips one or more packages' checked mods. One package gives a zip of jars ready for a `mods` folder; several give one zip with a folder per package.
 - Packages are stored in the admin app's settings and published to the Pi (`mod_packages.json` in the server folder, mod file names only) shortly after every change, so the player portal can offer them.
+
+### World backup
+
+**Backup World** on the Dashboard downloads the whole world as `minecraft_world_backup_<date>_<time>.zip` to the computer running the app. On the Pi it turns autosave off (`save-off`), writes everything to disk (`save-all flush`), zips the world, and always turns autosave back on, so players can keep playing. The download is written to a `.part` file and only renamed once the zip is complete and checked.
 
 ---
 
@@ -120,8 +125,18 @@ Edit `player-portal.service` with your own username and paths, then:
 ```bash
 sudo cp player-portal.service /etc/systemd/system/minecraft-player-portal.service
 sudo systemctl daemon-reload
-sudo systemctl enable --now minecraft-player-portal
 ```
+
+The portal is deliberately **not** enabled at boot, so it's always off after the Pi restarts. Turn it on and off from the admin app's Dashboard (**Player Portal → Turn On / Turn Off**). The API does this with `sudo systemctl start|stop minecraft-player-portal.service`, so give the API's user permission for exactly those two commands (replace `pi` with your username):
+
+```bash
+echo 'pi ALL=(root) NOPASSWD: /usr/bin/systemctl start minecraft-player-portal.service, /usr/bin/systemctl stop minecraft-player-portal.service' \
+  | sudo tee /etc/sudoers.d/minecraft-player-portal
+sudo chmod 440 /etc/sudoers.d/minecraft-player-portal
+sudo visudo -c
+```
+
+Only run one portal service. An older or second copy bound to `0.0.0.0:5000` would expose the portal to your whole LAN and fight over the port.
 
 The portal listens on `127.0.0.1:5000`. To share it with players over your tailnet only, use `tailscale serve` on the Pi.
 
@@ -140,6 +155,14 @@ python main.py
 ```
 
 On first launch, open **Settings** (bottom of the sidebar) and enter your Pi's Tailscale IP or MagicDNS name, SSH username, the server folder on the Pi, API port `8080`, the RCON password and the API key. These are saved only on your computer.
+
+### Open it from Applications (macOS)
+
+```bash
+./install_mac_app.sh
+```
+
+This adds **Minecraft Server Manager** to `/Applications` (and Launchpad/Spotlight). macOS blocks apps opened from Finder from reading `~/Documents`, so the app runs a copy of `admin-app` kept in `~/Library/Application Support/Minecraft Server Manager`, and starts Python natively on Apple Silicon. Re-run the script after changing the app's code. Settings are shared, so nothing needs re-entering. Logs: `~/Library/Logs/Minecraft Server Manager.log`.
 
 ---
 
