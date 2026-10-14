@@ -92,7 +92,7 @@ def wake_server():
 
 @app.route("/mods/download-all")
 def download_all_mods():
-    r = requests.get(f"{API_BASE}/api/mods/download-all", headers=_api_headers(), stream=True, timeout=60)
+    r = requests.get(f"{API_BASE}/api/mods/download-all", headers=_api_headers(), stream=True, timeout=300)
     if not r.ok:
         flash("Could not download mods.", "danger")
         return redirect(url_for("index"))

@@ -172,6 +172,10 @@ class ConsoleTab(QWidget):
         if status == "connected":
             # The Pi sends recent history on every (re)connect, so start fresh
             self.log_view.clear()
+            note = "Connected — recent server log below, new lines appear live."
+            if self.hide_rcon.isChecked():
+                note += " RCON status-check lines are hidden."
+            self._append_line(note, theme.SUBTLE)
             self.conn_label.setText("● Live")
             theme.set_prop(self.conn_label, "state", "ok")
         else:

@@ -284,15 +284,11 @@ def download_mod(filename: str):
 @app.get("/api/mods/download-all", dependencies=_auth)
 def download_all_mods():
     from pathlib import Path
-    mods_path = Path(settings.mods_dir)
-    jar_files = sorted(mods_path.glob("*.jar"))
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for jar in jar_files:
-            zf.write(jar, jar.name)
-    buf.seek(0)
+    # Stored (not re-compressed) zip spooled to disk: jars are already compressed,
+    # and compressing ~80 MB in memory is slow enough on a Pi to time out.
+    buf, _ = mm.zip_files(sorted(p.name for p in Path(settings.mods_dir).glob("*.jar")))
     return StreamingResponse(
-        buf,
+        mm.iter_file(buf),
         media_type="application/zip",
         headers={"Content-Disposition": "attachment; filename=mods.zip"},
     )

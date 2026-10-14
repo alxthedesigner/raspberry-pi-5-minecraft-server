@@ -3,6 +3,7 @@ Real-time log streaming via WebSocket.
 Tails logs/latest.log and broadcasts to all connected clients.
 """
 import asyncio
+import gzip
 import os
 from pathlib import Path
 from typing import Set
@@ -11,15 +12,18 @@ from config import settings
 
 # Lines of existing log sent to a client when it connects
 HISTORY_LINES = 200
+# RCON connect/disconnect lines (written every few seconds by status checks) would
+# otherwise push all real output out of the history
+HISTORY_SKIP = "net.minecraft.server.rcon.thread."
 
 
 def _last_lines(path: Path, count: int) -> list:
-    """Return the last `count` lines of a file without reading all of it."""
+    """Return the last `count` non-RCON lines of a file without reading all of it."""
     try:
         with open(path, "rb") as f:
             f.seek(0, 2)
             size = f.tell()
-            block = min(size, 256 * 1024)
+            block = min(size, 4 * 1024 * 1024)
             f.seek(size - block)
             data = f.read().decode("utf-8", errors="replace")
     except OSError:
@@ -27,7 +31,24 @@ def _last_lines(path: Path, count: int) -> list:
     lines = data.splitlines()
     if block < size:
         lines = lines[1:]  # first line is probably cut off
-    return lines[-count:]
+    return [l for l in lines if HISTORY_SKIP not in l][-count:]
+
+
+def _history(path: Path, count: int) -> list:
+    """Recent real log lines; if latest.log is quiet (e.g. just rolled over at
+    midnight), fill in from the most recent rotated log (logs/YYYY-MM-DD-N.log.gz)."""
+    lines = _last_lines(path, count)
+    if len(lines) >= count:
+        return lines
+    rotated = sorted(path.parent.glob("[0-9][0-9][0-9][0-9]-*.log.gz"), key=lambda p: p.stat().st_mtime)
+    if rotated:
+        try:
+            with gzip.open(rotated[-1], "rt", encoding="utf-8", errors="replace") as f:
+                older = [l.rstrip("\n") for l in f if HISTORY_SKIP not in l]
+            lines = older[-(count - len(lines)):] + lines
+        except OSError:
+            pass
+    return lines
 
 
 class LogStreamer:
@@ -38,7 +59,7 @@ class LogStreamer:
     async def connect(self, ws: WebSocket):
         await ws.accept()
         # Send recent history so the console isn't empty until the next log line
-        for line in _last_lines(Path(settings.log_file), HISTORY_LINES):
+        for line in _history(Path(settings.log_file), HISTORY_LINES):
             await ws.send_text(line)
         async with self._lock:
             self._clients.add(ws)

@@ -155,6 +155,6 @@ On first launch, open **Settings** (bottom of the sidebar) and enter your Pi's T
 
 **Admin app can't connect** — check the Pi's Tailscale IP (`tailscale ip`), that `sudo systemctl status minecraft-manager` is running, and that the API key matches.
 
-**Console is empty** — the API sends the last 200 log lines when the console connects. If nothing appears, check the API is running and the WebSocket (`ws://<pi>:8080/ws/log`) is reachable.
+**Console is empty** — on connect the API sends the last 200 real log lines (RCON status-check lines are skipped, and if today's log is quiet it fills in from the previous log). If nothing appears, check the API is running, the API key in Settings matches, and the WebSocket (`ws://<pi>:8080/ws/log`) is reachable.
 
 **Server won't start from the app** — check `tmux` is installed, `MC_SERVER_DIR` is correct and contains `run.sh`, and run `./run.sh nogui` by hand to see the error. A common cause after an upgrade is a missing required library mod; the error is near the top of `logs/latest.log`.
